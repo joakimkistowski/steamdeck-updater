@@ -3,6 +3,8 @@
 #include <flatpak.h>
 #include <stdio.h>
 #include <glib.h>
+#include <stdlib.h>
+#include <pwd.h>
 
 
 static FlatpakInstallation* flatpakUserInstallation = NULL;
@@ -25,6 +27,16 @@ void printErrorIfPresent() {
 void printAndClearErrorIfPresent() {
     printErrorIfPresent();
     clearErrorIfPresent();
+}
+
+short isSteamDeck() {
+  uid_t uid = geteuid();
+  struct passwd *pw = getpwuid(uid);
+  if (pw) {
+    return strcmp(pw->pw_name, "deck") == 0;
+  }
+
+  return FALSE;
 }
 
 FlatpakInstallation* getFlatpakUserInstallationSingleton() {
