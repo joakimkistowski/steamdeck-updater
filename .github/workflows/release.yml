@@ -30,6 +30,7 @@ jobs:
           cd dist
           tar -czvf steamdeckupdater.tar.gz steamdeckupdater
           cd ..
+
       - name: Get Version
         run: |
           export RELEASE_VERSION=$(date "+%Y-%m-%d-%H-%M")
