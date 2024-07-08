@@ -29,5 +29,6 @@ steamdeck-updater-cli
 
 /.idea
 /.vscode
+/dist
 
 pk_integration.*

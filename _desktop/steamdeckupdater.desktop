@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Steam Deck Updater
+Comment=Updater for Flatpaks on Steam Deck
+#Path=~/opt/
+Exec=~/.local/bin/steamdeckupdater
+Icon=steamdeckupdater
+Terminal=false
+Categories=Utility;
