@@ -1,0 +1,46 @@
+name: Build Release
+
+on:
+  push:
+    branches:
+      - main
+      - release
+jobs:
+  build_release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libflatpak-dev libc6-dev libgl1-mesa-dev libxcursor-dev libxi-dev libxinerama-dev libxrandr-dev libxxf86vm-dev libasound2-dev pkg-config
+      - name: Setup Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: 1.21.x
+      - name: Build
+        run: GOOS=linux go build -v .
+      - name: Create Bundle
+        run: |
+          mkdir -p ./dist/steamdeckupdater
+          cp steamdeckupdater dist/steamdeckupdater/
+          cp -r _desktop dist/steamdeckupdater/desktop
+          mv dist/steamdeckupdater/desktop/install_built_binary.sh dist/steamdeckupdater/install.sh
+          sed -i 's/_desktop/desktop/g' dist/steamdeckupdater/install.sh
+          cd dist
+          tar -czvf steamdeckupdater.tar.gz steamdeckupdater
+          cd ..
+      - name: Get Version
+        run: |
+          export RELEASE_VERSION=$(date "+%Y-%m-%d-%H-%M")
+          export COMMIT_MESSAGE=$(git log -1 --pretty=%B)
+          echo "RELEASE_VERSION=RELEASE_VERSION" >> $GITHUB_ENV
+          echo "COMMIT_MESSAGE=COMMIT_MESSAGE" >> $GITHUB_ENV
+      - name: Create Release and publish
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            dist/steamdeckupdater.tar.gz
+          body: ${{ env.COMMIT_MESSAGE }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+          tag_name: ${{ env.RELEASE_VERSION }}
