@@ -3,9 +3,12 @@
 #include <flatpak.h>
 #include <stdio.h>
 #include <glib.h>
+#include <stdlib.h>
+#include <pwd.h>
 
 
 static FlatpakInstallation* flatpakUserInstallation = NULL;
+static GPtrArray* flatpakInstallations = NULL;
 
 static GError *error = NULL;
 
@@ -27,13 +30,21 @@ void printAndClearErrorIfPresent() {
     clearErrorIfPresent();
 }
 
-FlatpakInstallation* getFlatpakUserInstallationSingleton() {
-    if (flatpakUserInstallation == NULL) {
-        flatpakUserInstallation = flatpak_installation_new_user(NULL, &error);
+GPtrArray* getFlatpakInstallations() {
+    if (flatpakInstallations == NULL) {
+        flatpakInstallations = g_ptr_array_new();
+        g_ptr_array_extend_and_steal(flatpakInstallations, flatpak_get_system_installations(NULL, &error));
         printErrorIfPresent();
-        clearErrorIfPresent();
+        if (flatpakUserInstallation == NULL) {
+            flatpakUserInstallation = flatpak_installation_new_user(NULL, &error);
+            printErrorIfPresent();
+            clearErrorIfPresent();
+            g_ptr_array_add(flatpakInstallations, flatpakUserInstallation);
+        }
+        return flatpakInstallations;
     }
-    return flatpakUserInstallation;
+
+    return flatpakInstallations;
 }
 
 FlatpakContainer* getFlatpakContainer(FlatpakContainerList *flatpakContainerList, int index) {
@@ -43,9 +54,7 @@ FlatpakContainer* getFlatpakContainer(FlatpakContainerList *flatpakContainerList
     return &(flatpakContainerList->packages[index]);
 }
 
-void updateFlatpakRemotes()
-{
-    FlatpakInstallation* flatpakInstallation = getFlatpakUserInstallationSingleton();
+void updateFlatpakRemotesForInstallation(FlatpakInstallation* flatpakInstallation) {
     if (flatpakInstallation == NULL) {
         return;
     }
@@ -63,17 +72,48 @@ void updateFlatpakRemotes()
     g_ptr_array_free(remotes, TRUE);
 }
 
-FlatpakContainerList* getUpdatableFlatpaks() {
+void updateFlatpakRemotes() {
+    GPtrArray* installations = getFlatpakInstallations();
+    if (installations == NULL || installations->len <= 0) {
+        return;
+    }
+    for (int i = 0; i < installations->len; i++) {
+        updateFlatpakRemotesForInstallation((FlatpakInstallation*) installations->pdata[i]);
+    }
+}
+
+FlatpakContainerList* createMergedFlatpakContainerList(FlatpakContainerList* list1, FlatpakContainerList* list2) {
+    if (list1 == NULL && list2 == NULL) {
+        return NULL;
+    }
+    if (list1 == NULL) {
+        return list2;
+    }
+    if (list2 == NULL) {
+        return list1;
+    }
+    FlatpakContainerList* toReturn = malloc(sizeof(FlatpakContainerList));
+    toReturn->isErrorGettingPackages = list1->isErrorGettingPackages || list2->isErrorGettingPackages;
+    toReturn->size = list1->size + list2->size;
+    toReturn->packages = malloc(toReturn->size * sizeof(FlatpakContainer));
+    for (int i = 0; i < list1->size; i++) {
+        toReturn->packages[i] = list1->packages[i];
+    }
+    for (int i = 0; i < list2->size; i++) {
+        toReturn->packages[i + list1->size] = list2->packages[i];
+    }
+    return toReturn;
+}
+
+FlatpakContainerList* getUpdatableFlatpaksForInstallation(FlatpakInstallation* flatpakInstallation) {
     FlatpakContainerList* toReturn = malloc(sizeof(FlatpakContainerList));
     toReturn->isErrorGettingPackages = TRUE;
     toReturn->size = 0;
     toReturn->packages = NULL;
-    FlatpakInstallation* flatpakInstallation = getFlatpakUserInstallationSingleton();
     if (flatpakInstallation == NULL) {
         return toReturn;
     }
     GPtrArray* updatableFlatpaks = flatpak_installation_list_installed_refs_for_update(flatpakInstallation, NULL, &error);
-    //GPtrArray* updatableFlatpaks = flatpak_installation_list_installed_refs(flatpakInstallation, NULL, &error);
     printAndClearErrorIfPresent();
     if (updatableFlatpaks == NULL) {
         return toReturn;
@@ -98,12 +138,25 @@ FlatpakContainerList* getUpdatableFlatpaks() {
     return toReturn;
 }
 
-GenericFlatpakOperationResult updateEverything() {
-    FlatpakInstallation* flatpakInstallation = getFlatpakUserInstallationSingleton();
-    if (flatpakInstallation == NULL) {
-        GenericFlatpakOperationResult res = {TRUE, "No Flatpak installation found"};
-        return res;
+FlatpakContainerList* getUpdatableFlatpaks() {
+    FlatpakContainerList* toReturn = malloc(sizeof(FlatpakContainerList));
+    toReturn->isErrorGettingPackages = FALSE;
+    toReturn->size = 0;
+    GPtrArray* installations = getFlatpakInstallations();
+    if (installations == NULL || installations->len <= 0) {
+        return toReturn;
     }
+    for (int i = 0; i < installations->len; i++) {
+        FlatpakContainerList* updatableFlatpaks = getUpdatableFlatpaksForInstallation((FlatpakInstallation*) installations->pdata[i]);
+        FlatpakContainerList* mergedList = createMergedFlatpakContainerList(toReturn, updatableFlatpaks);
+        free(toReturn);
+        free(updatableFlatpaks);
+        toReturn = mergedList;
+    }
+    return toReturn;
+}
+
+GenericFlatpakOperationResult updateEverythingForInstallation(FlatpakInstallation* flatpakInstallation) {
     FlatpakTransaction* flatpakTransaction = flatpak_transaction_new_for_installation(flatpakInstallation, NULL, &error);
     printAndClearErrorIfPresent();
     if (flatpakTransaction == NULL) {
@@ -136,6 +189,22 @@ GenericFlatpakOperationResult updateEverything() {
         return res;
     }
     printAndClearErrorIfPresent();
+    GenericFlatpakOperationResult res = {FALSE, ""};
+    return res;
+}
+
+GenericFlatpakOperationResult updateEverything() {
+    GPtrArray* installations = getFlatpakInstallations();
+    if (installations == NULL || installations->len <= 0) {
+        GenericFlatpakOperationResult res = {TRUE, "No Flatpak installations found"};
+        return res;
+    }
+    for (int i = 0; i < installations->len; i++) {
+        GenericFlatpakOperationResult res = updateEverythingForInstallation((FlatpakInstallation*) installations->pdata[i]);
+        if (res.isReturnedWithError) {
+            return res;
+        }
+    }
     GenericFlatpakOperationResult res = {FALSE, ""};
     return res;
 }
