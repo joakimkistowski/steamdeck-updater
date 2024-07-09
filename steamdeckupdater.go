@@ -2,20 +2,21 @@ package main
 
 import (
 	"fmt"
-	"github.com/ebitenui/ebitenui"
-	"github.com/ebitenui/ebitenui/widget"
-	"github.com/hajimehoshi/ebiten/v2"
-	"golang.org/x/image/colornames"
 	"log"
 	"os"
 	"steamdeckupdater/flatpakintegration"
 	"steamdeckupdater/sduinput"
 	"steamdeckupdater/sduwidgets"
 	"time"
+
+	"github.com/ebitenui/ebitenui"
+	"github.com/ebitenui/ebitenui/widget"
+	"github.com/hajimehoshi/ebiten/v2"
+	"golang.org/x/image/colornames"
 )
 
 const DefaultWindowWidth = 1280
-const DefaultWindowHeight = 720
+const DefaultWindowHeight = 800
 
 const UpdateStateContainerHeight = DefaultWindowHeight * 0.9
 const ButtonContainerHeight = DefaultWindowHeight * 0.1
