@@ -66,6 +66,7 @@ func createRuntimeCountText(runtimeCount int) *widget.Text {
 func createUpdateNames(allApplicationNames []string) []widget.PreferredSizeLocateableWidget {
 	var updateNames []widget.PreferredSizeLocateableWidget
 	applicationNamesToDisplay := getApplicationNamesToDisplay(allApplicationNames)
+	moreUpdatesText := NewSduText("...", colornames.White, 18)
 	for i, name := range applicationNamesToDisplay {
 		if i < MaxUpdatesToShow-1 || (i == MaxUpdatesToShow-1 && len(applicationNamesToDisplay) == MaxUpdatesToShow) {
 			nameText := NewSduText(name, colornames.White, 17)
@@ -75,11 +76,13 @@ func createUpdateNames(allApplicationNames []string) []widget.PreferredSizeLocat
 			nameTextContainer.AddChild(nameText)
 			updateNames = append(updateNames, nameTextContainer)
 		} else if i == MaxUpdatesToShow-1 {
-			moreUpdatesText := NewSduText("...", colornames.White, 18)
 			updateNames = append(updateNames, moreUpdatesText)
 		} else {
 			break
 		}
+	}
+	if len(applicationNamesToDisplay) < len(allApplicationNames) && len(applicationNamesToDisplay) < MaxUpdatesToShow {
+		updateNames = append(updateNames, moreUpdatesText)
 	}
 
 	return updateNames
