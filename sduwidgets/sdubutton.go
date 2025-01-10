@@ -4,6 +4,7 @@ import (
 	"github.com/ebitenui/ebitenui/image"
 	"github.com/ebitenui/ebitenui/widget"
 	"github.com/golang/freetype/truetype"
+	"github.com/hajimehoshi/ebiten/v2/text/v2"
 	"golang.org/x/image/font"
 	"golang.org/x/image/font/gofont/goregular"
 	"image/color"
@@ -64,15 +65,15 @@ func loadButtonImage() *widget.ButtonImage {
 	}
 }
 
-func GetDefaultFont(size float64) font.Face {
+func GetDefaultFont(size float64) text.Face {
 	if sduTTF == nil {
 		sduTTF = loadTTF()
 	}
-	return truetype.NewFace(sduTTF, &truetype.Options{
+	return text.NewGoXFace(truetype.NewFace(sduTTF, &truetype.Options{
 		Size:    size,
 		DPI:     72,
 		Hinting: font.HintingFull,
-	})
+	}))
 }
 
 func loadTTF() *truetype.Font {

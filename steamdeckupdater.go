@@ -18,9 +18,6 @@ import (
 const DefaultWindowWidth = 1280
 const DefaultWindowHeight = 800
 
-const UpdateStateContainerHeight = DefaultWindowHeight * 0.9
-const ButtonContainerHeight = DefaultWindowHeight * 0.1
-
 const UpgradingMessage = "Upgrading"
 
 type SteamdeckUpdateStatus int
@@ -46,6 +43,8 @@ type GraphicalSteamdeckUpdaterApp struct {
 	updateStateContainer       *widget.Container
 	displayMessageText         *widget.Text
 	ui                         *ebitenui.UI
+	actualWindowHeight         int
+	actualWindowWidth          int
 }
 
 func (app *GraphicalSteamdeckUpdaterApp) Update() error {
@@ -67,7 +66,15 @@ func (app *GraphicalSteamdeckUpdaterApp) Draw(screen *ebiten.Image) {
 }
 
 func (app *GraphicalSteamdeckUpdaterApp) Layout(outsideWidth, outsideHeight int) (screenWidth, screenHeight int) {
-	return DefaultWindowWidth, DefaultWindowHeight
+	formerWidth := app.actualWindowWidth
+	formerHeight := app.actualWindowHeight
+	app.actualWindowWidth = outsideWidth
+	app.actualWindowHeight = outsideHeight
+	if app.ui != nil && (app.actualWindowWidth != formerWidth || app.actualWindowHeight != formerHeight) {
+		log.Printf("Re-Layouting to %d x %d", outsideWidth, outsideHeight)
+		app.initializeUi()
+	}
+	return outsideWidth, outsideHeight
 }
 
 func (app *GraphicalSteamdeckUpdaterApp) initializeUi() {
@@ -78,18 +85,18 @@ func (app *GraphicalSteamdeckUpdaterApp) initializeUi() {
 		widget.ContainerOpts.Layout(widget.NewAnchorLayout(
 			widget.AnchorLayoutOpts.Padding(widget.Insets{Top: 10, Left: 10, Right: 10, Bottom: 10}),
 		)),
-		widget.ContainerOpts.WidgetOpts(widget.WidgetOpts.MinSize(DefaultWindowWidth, UpdateStateContainerHeight)),
+		widget.ContainerOpts.WidgetOpts(widget.WidgetOpts.MinSize(app.actualWindowWidth, app.getUpdateContainerHeight())),
 	)
 	buttonContainer := widget.NewContainer(
 		widget.ContainerOpts.Layout(
 			widget.NewGridLayout(
 				widget.GridLayoutOpts.Columns(2),
 				widget.GridLayoutOpts.Padding(widget.Insets{Top: 10, Left: 10, Right: 10, Bottom: 10}),
-				widget.GridLayoutOpts.Spacing(DefaultWindowWidth*0.7, 10),
+				widget.GridLayoutOpts.Spacing(app.actualWindowWidth*7/10, 10),
 				widget.GridLayoutOpts.Stretch([]bool{true, true}, []bool{true}),
 			),
 		),
-		widget.ContainerOpts.WidgetOpts(widget.WidgetOpts.MinSize(DefaultWindowWidth, ButtonContainerHeight)),
+		widget.ContainerOpts.WidgetOpts(widget.WidgetOpts.MinSize(app.actualWindowWidth, app.getButtonContainerHeight())),
 	)
 	app.displayMessageText = sduwidgets.NewSduText("Loading ...", colornames.Black, 40)
 	app.displayMessageText.GetWidget().LayoutData = widget.AnchorLayoutData{HorizontalPosition: widget.AnchorLayoutPositionCenter, VerticalPosition: widget.AnchorLayoutPositionCenter}
@@ -122,9 +129,15 @@ func (app *GraphicalSteamdeckUpdaterApp) registerInputHandlers() {
 
 func main() {
 	ebiten.SetWindowSize(DefaultWindowWidth, DefaultWindowHeight)
+	ebiten.SetFullscreen(true)
 	ebiten.SetWindowTitle("Steam Deck Updater")
-
-	app := &GraphicalSteamdeckUpdaterApp{updateStatusChangeNotifier: make(chan SteamdeckUpdateStatus), inputHandler: &sduinput.InputHandler{}}
+	windowWidth, windowHeight := ebiten.WindowSize()
+	app := &GraphicalSteamdeckUpdaterApp{
+		updateStatusChangeNotifier: make(chan SteamdeckUpdateStatus),
+		inputHandler:               &sduinput.InputHandler{},
+		actualWindowHeight:         windowHeight,
+		actualWindowWidth:          windowWidth,
+	}
 	app.initializeUi()
 	app.registerInputHandlers()
 	if err := ebiten.RunGame(app); err != nil {
@@ -271,4 +284,12 @@ func (app *GraphicalSteamdeckUpdaterApp) onBReleased() {
 	if app.cancelButton != nil && !app.cancelButton.GetWidget().Disabled {
 		sduwidgets.SduButtonReleaseAndClick(app.cancelButton)
 	}
+}
+
+func (app *GraphicalSteamdeckUpdaterApp) getUpdateContainerHeight() int {
+	return app.actualWindowHeight * 9 / 10
+}
+
+func (app *GraphicalSteamdeckUpdaterApp) getButtonContainerHeight() int {
+	return app.actualWindowHeight / 10
 }
